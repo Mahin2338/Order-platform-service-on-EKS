@@ -10,3 +10,4 @@
 *.tfvars.json
 !*.example.tfvars
 crash.log
+**/backend.hcl
