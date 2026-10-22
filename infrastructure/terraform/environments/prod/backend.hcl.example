@@ -1,0 +1,2 @@
+bucket = "order-platform-tfstate-YOUR_ACCOUNT_ID-eu-west-2"
+region = "eu-west-2"
