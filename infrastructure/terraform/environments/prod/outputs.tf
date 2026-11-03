@@ -12,3 +12,8 @@ output "public_subnet_ids" {
   description = "Public subnets for future internet-facing load balancers."
   value       = module.networking.public_subnet_ids
 }
+
+output "ecr_repository_urls" {
+  description = "Private image repository URL for each application service."
+  value       = module.ecr.repository_urls
+}

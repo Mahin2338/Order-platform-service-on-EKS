@@ -1,0 +1,14 @@
+# Only send build inputs, not local settings or credentials.
+**
+!go.mod
+!go.sum
+!main.go
+!static/
+!static/**
+# Do not allow sensitive files within the static asset tree either.
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/credentials
+**/.aws/**
