@@ -22,3 +22,20 @@ module "eks" {
   node_max_size        = 4
   node_max_unavailable = 1
 }
+
+module "ecr" {
+  source = "../../modules/ecr"
+
+  repository_prefix = "order-platform"
+  service_names = [
+    "api-gateway",
+    "dashboard-api",
+    "inventory-service",
+    "notification-service",
+    "order-service",
+    "payment-service",
+    "scheduler",
+    "shipping-service",
+    "worker",
+  ]
+}

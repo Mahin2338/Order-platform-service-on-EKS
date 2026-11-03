@@ -1,0 +1,333 @@
+name: Application CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# AWS credentials are available only to the publish job, never pull requests.
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  changes:
+    name: Detect changed services
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    # One matrix entry per affected service; docs-only changes produce [].
+    outputs:
+      services: ${{ steps.filter.outputs.changes }}
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # PRs compare against their base branch. Pushes to main compare against
+      # the commit main pointed to before that push.
+      - name: Find changed service directories
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          base: main
+          filters: |
+            api-gateway:
+              - 'services/api-gateway/**'
+              - '.github/workflows/application-ci.yml'
+            dashboard-api:
+              - 'services/dashboard-api/**'
+              - '.github/workflows/application-ci.yml'
+            inventory-service:
+              - 'services/inventory-service/**'
+              - '.github/workflows/application-ci.yml'
+            notification-service:
+              - 'services/notification-service/**'
+              - '.github/workflows/application-ci.yml'
+            order-service:
+              - 'services/order-service/**'
+              - '.github/workflows/application-ci.yml'
+            payment-service:
+              - 'services/payment-service/**'
+              - '.github/workflows/application-ci.yml'
+            scheduler:
+              - 'services/scheduler/**'
+              - '.github/workflows/application-ci.yml'
+            shipping-service:
+              - 'services/shipping-service/**'
+              - '.github/workflows/application-ci.yml'
+            worker:
+              - 'services/worker/**'
+              - '.github/workflows/application-ci.yml'
+
+      - name: Report selected services
+        env:
+          CHANGED_SERVICES: ${{ steps.filter.outputs.changes }}
+        run: |
+          echo "Selected services: $CHANGED_SERVICES"
+          {
+            echo "### Changed services"
+            echo
+            echo "Selected services: \`$CHANGED_SERVICES\`"
+            echo
+            echo "An empty list means no application services were selected."
+            echo "Selected services must pass all checks before any image is published."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  checks:
+    name: Check / ${{ matrix.service }}
+    needs: changes
+    if: needs.changes.outputs.services != '[]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.changes.outputs.services) }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: services/${{ matrix.service }}
+    env:
+      SERVICE: ${{ matrix.service }}
+      IMAGE: application-ci/${{ matrix.service }}:${{ github.sha }}
+      GOFLAGS: -mod=readonly
+      GOTOOLCHAIN: local
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Go (matches the Docker build stage)
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.3'
+          cache-dependency-path: services/${{ matrix.service }}/go.sum
+
+      - name: Read release version
+        run: |
+          version=$(cat VERSION)
+          if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "VERSION must contain a release version such as 1.0.0."
+            exit 1
+          fi
+          printf '%s\n' "$version" > "$RUNNER_TEMP/version-$SERVICE.txt"
+          echo "Release version: $version" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check Go formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [[ -n "$unformatted" ]]; then
+            printf 'Run gofmt on:\n%s\n' "$unformatted"
+            exit 1
+          fi
+
+      - name: Verify dependencies
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Check suspicious Go code
+        run: go vet ./...
+
+      - name: Run Go tests with race detection
+        run: go test -race -count=1 ./...
+
+      - name: Install Go vulnerability checker
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+
+      - name: Check reachable Go vulnerabilities
+        run: |
+          govulncheck ./... 2>&1 | tee "$RUNNER_TEMP/govulncheck-$SERVICE.txt"
+
+      - name: Scan dependency inventory
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          version: v0.69.3
+          scan-type: fs
+          scan-ref: services/${{ matrix.service }}
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: false
+          exit-code: '1'
+          format: table
+          output: ${{ runner.temp }}/dependencies-${{ matrix.service }}.txt
+
+      - name: Build Linux amd64 image from service directory
+        run: docker build --platform linux/amd64 --tag "$IMAGE" .
+
+      - name: Check runtime identity
+        run: |
+          runtime_user=$(docker image inspect --format '{{.Config.User}}' "$IMAGE")
+          if [[ "$runtime_user" != "65532:65532" ]]; then
+            echo "Expected explicit non-root runtime user 65532:65532; got $runtime_user"
+            exit 1
+          fi
+
+      - name: Scan built image and embedded secrets
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          version: v0.69.3
+          image-ref: application-ci/${{ matrix.service }}:${{ github.sha }}
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: false
+          exit-code: '1'
+          format: table
+          output: ${{ runner.temp }}/image-${{ matrix.service }}.txt
+
+      # Do not rebuild in the privileged publish job: transfer the scanned image.
+      - name: Export the scanned image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: docker save "$IMAGE" | gzip > "$RUNNER_TEMP/image-$SERVICE.tar.gz"
+
+      - name: Store scanned image for publishing
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-${{ matrix.service }}-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/image-${{ matrix.service }}.tar.gz
+            ${{ runner.temp }}/version-${{ matrix.service }}.txt
+          retention-days: 1
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Store available scan reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scans-${{ matrix.service }}-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/govulncheck-${{ matrix.service }}.txt
+            ${{ runner.temp }}/dependencies-${{ matrix.service }}.txt
+            ${{ runner.temp }}/image-${{ matrix.service }}.txt
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Report service result
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          printf '### %s\nResult: %s\nCommit: `%s`\n' "$SERVICE" "$JOB_STATUS" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+
+  # Stable check name for branch protection, including docs-only pull requests.
+  required-checks:
+    name: Application CI gate
+    needs: [changes, checks]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require successful checks or a confirmed empty service list
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          SERVICES: ${{ needs.changes.outputs.services }}
+        run: |
+          if [[ "$CHANGES_RESULT" != "success" ]]; then
+            echo "Change detection did not succeed."
+            exit 1
+          fi
+          if [[ "$SERVICES" == "[]" && "$CHECKS_RESULT" == "skipped" ]]; then
+            echo "No affected application services."
+          elif [[ "$CHECKS_RESULT" != "success" ]]; then
+            echo "One or more selected services failed checks."
+            exit 1
+          fi
+
+  publish:
+    name: Publish / ${{ matrix.service }}
+    needs: [changes, required-checks]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.services != '[]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: ecr-publish
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.changes.outputs.services) }}
+    env:
+      SERVICE: ${{ matrix.service }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'eu-west-2' }}
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+      REPOSITORY_PREFIX: ${{ vars.ECR_REPOSITORY_PREFIX || 'order-platform' }}
+
+    steps:
+      - name: Check publishing configuration
+        run: |
+          test -n "$AWS_ROLE_ARN" || { echo "Set AWS_ROLE_ARN in the ecr-publish environment."; exit 1; }
+          [[ "$AWS_ACCOUNT_ID" =~ ^[0-9]{12}$ ]] || { echo "Set a 12-digit AWS_ACCOUNT_ID."; exit 1; }
+
+      - name: Download the exact scanned image from this workflow run
+        uses: actions/download-artifact@v4
+        with:
+          name: image-${{ matrix.service }}-${{ github.sha }}
+          path: ${{ runner.temp }}/image
+
+      - name: Load the scanned image
+        run: docker load --input "$RUNNER_TEMP/image/image-$SERVICE.tar.gz"
+
+      - name: Read the checked release version
+        run: |
+          version=$(cat "$RUNNER_TEMP/image/version-$SERVICE.txt")
+          [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || exit 1
+          echo "RELEASE_VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Authenticate to AWS using GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          allowed-account-ids: ${{ env.AWS_ACCOUNT_ID }}
+          role-session-name: github-application-ci
+
+      - name: Require an existing immutable ECR repository
+        run: |
+          repository="$REPOSITORY_PREFIX/$SERVICE"
+          mutability=$(aws ecr describe-repositories --repository-names "$repository" --query 'repositories[0].imageTagMutability' --output text)
+          if [[ "$mutability" != "IMMUTABLE" ]]; then
+            echo "Repository $repository must use IMMUTABLE tags without exclusions."
+            exit 1
+          fi
+
+      - name: Log in to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Push version-tagged image and record its digest
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          repository="$REPOSITORY_PREFIX/$SERVICE"
+          tag="$RELEASE_VERSION"
+          image="$REGISTRY/$repository:$tag"
+          docker tag "application-ci/$SERVICE:$GITHUB_SHA" "$image"
+          docker push "$image"
+          digest=$(aws ecr describe-images --repository-name "$repository" --image-ids "imageTag=$tag" --query 'imageDetails[0].imageDigest' --output text)
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "Missing valid published digest"; exit 1; }
+          jq -n --arg service "$SERVICE" --arg commit "$GITHUB_SHA" --arg version "$RELEASE_VERSION" --arg tag "$image" --arg image "$REGISTRY/$repository@$digest" \
+            '{service: $service, version: $version, commit: $commit, tag: $tag, image: $image}' > "$RUNNER_TEMP/published-$SERVICE.json"
+          {
+            echo "### Published $SERVICE"
+            echo "Release tag: \`$image\`"
+            echo "Immutable image: \`$REGISTRY/$repository@$digest\`"
+            echo "Deployment is a separate workflow; nothing was promoted."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Store published image reference
+        uses: actions/upload-artifact@v4
+        with:
+          name: published-${{ matrix.service }}-${{ github.sha }}
+          path: ${{ runner.temp }}/published-${{ matrix.service }}.json
+          if-no-files-found: error
+          retention-days: 30
