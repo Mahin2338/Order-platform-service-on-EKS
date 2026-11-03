@@ -29,4 +29,10 @@ The local configuration files and Terraform state are ignored by Git.
 
 The AWS identity needs access to the state bucket and state object, plus
 GetObject, PutObject, and DeleteObject on the associated `.tflock` object.
-Application infrastructure modules have not yet been wired into this environment.
+The networking module is wired into this environment; EKS and application resources
+are not yet implemented. See [networking module guide](../../modules/networking/README.md).
+Networking creates one NAT gateway per AZ (three total), allowing private
+subnets to route outbound traffic through their own AZ. AWS API connectivity
+still needs verification after nodes and IAM permissions are configured. The VPC module requires AWS provider >= 6.28; run
+`terraform init -upgrade -backend-config=backend.hcl` and review the lockfile
+change if upgrading an existing provider installation.
