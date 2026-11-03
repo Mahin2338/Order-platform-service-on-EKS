@@ -1,5 +1,5 @@
-# image being used is golang:1.26.3
-FROM golang@sha256:2d6c80227255c3112a4d08e67ba98e58efd3846daf15d9d7d4c389565d881b1a AS build
+# image being used is golang:1.26.10
+FROM golang:1.26.10@sha256:670bb5aa5349ae03b8516764718486f4f16399134bdc9acd0c46a23f043ab05c AS build
 
 WORKDIR /app
 
