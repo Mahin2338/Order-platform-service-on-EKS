@@ -17,3 +17,8 @@ output "ecr_repository_urls" {
   description = "Private image repository URL for each application service."
   value       = module.ecr.repository_urls
 }
+
+output "github_ecr_publish_role_arn" {
+  description = "GitHub ecr-publish environment AWS_ROLE_ARN value."
+  value       = module.iam.github_ecr_publish_role_arn
+}

@@ -69,7 +69,7 @@ its check fails safely because its build context no longer exists.
 ## AWS setup required before publishing
 
 The ECR Terraform module defines nine separate immutable repositories, wired
-into production. They have not been created in AWS by this change. The workflow
+into production. All nine repositories were verified present in AWS on 3 November 2026. The workflow
 does not create repositories or IAM resources.
 
 ```text
@@ -97,7 +97,7 @@ Create the GitHub OIDC provider `token.actions.githubusercontent.com` with audie
 `sts.amazonaws.com` if not already present. The publishing role trust must match:
 
 - Audience: `sts.amazonaws.com`
-- Subject: `repo:Mahin2338/Order-platform-service-on-EKS:environment:ecr-publish`
+- Subject: `repo:Mahin2338@198268223/Order-platform-service-on-EKS@1428251630:environment:ecr-publish`
 
 Because environment-based subjects do not encode the branch, the environment's
 main-only restriction is essential. Do not use a wildcard repository/subject.
@@ -136,9 +136,8 @@ as the GitHub publishing role.
 Passed locally: `actionlint`, YAML parsing, all nine build-context checks,
 and selection checks for one service, multiple services, dotfiles, docs-only
 changes and shared workflow changes. No local image builds were run for this
-workflow. End-to-end runner execution, scan results, OIDC authentication and ECR
-pushes remain unverified
-until this workflow is committed/pushed and the prerequisites above are configured.
+workflow. The original implementation was not end-to-end verified at authoring time;
+see the successful publishing verification recorded below.
 
 ## Release versions
 
@@ -162,3 +161,20 @@ repository creations before applying that saved plan. Targeting is an exceptiona
 partial operation, not the normal deployment workflow. Run a full plan afterwards
 to see remaining infrastructure changes. Do not run an unrestricted apply merely
 to create the repositories.
+
+## Publishing access configured — 3 November 2026
+
+Terraform `module.iam` now manages the GitHub OIDC provider and the role
+`arn:aws:iam::792289066018:role/order-platform-github-ecr-publish`, with its
+inline policy limited to ECR login and the nine service repository ARNs.
+The trust subject above matches GitHub's verified immutable subject prefix,
+including owner/repository IDs, and the `ecr-publish` environment.
+
+A targeted saved plan created only these three IAM resources (no VPC/EKS changes).
+The GitHub environment now permits only the `main` branch and has all four
+publishing variables set. Those GitHub environment settings are configured via
+GitHub, not tracked in Terraform. The human SSO role is not used by CI.
+Terraform validation passed, and a full post-apply plan reported no changes.
+Main run [41719249054, attempt 2](https://github.com/Mahin2338/Order-platform-service-on-EKS/actions/runs/41719249054)
+completed successfully: all nine publishing jobs authenticated via OIDC and
+published their `1.0.0` releases with digest-reference artifacts.

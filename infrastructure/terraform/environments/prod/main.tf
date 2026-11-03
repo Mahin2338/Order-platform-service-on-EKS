@@ -39,3 +39,11 @@ module "ecr" {
     "worker",
   ]
 }
+
+module "iam" {
+  source = "../../modules/iam"
+
+  publish_role_name      = "order-platform-github-ecr-publish"
+  github_publish_subject = "repo:Mahin2338@198268223/Order-platform-service-on-EKS@1428251630:environment:ecr-publish"
+  ecr_repository_arns    = module.ecr.repository_arns
+}
