@@ -48,6 +48,35 @@ module "iam" {
   ecr_repository_arns    = module.ecr.repository_arns
 }
 
+module "rds" {
+  source = "../../modules/rds"
+
+  identifier               = "order-platform-prod"
+  instance_class           = "db.t4g.small"
+  vpc_id                   = module.networking.vpc_id
+  subnet_ids               = module.networking.private_subnet_ids
+  worker_security_group_id = module.eks.worker_security_group_id
+
+  db_name                     = "orders"
+  username                    = "admin"
+  engine_version              = "16"
+  family                      = "postgres16"
+  allocated_storage           = 20
+  max_allocated_storage       = 30
+  multi_az                    = false
+  backup_retention_period     = 0
+  deletion_protection         = false
+  skip_final_snapshot         = true
+  delete_automated_backups    = true
+  maintenance_window          = "Sun:00:00-Sun:01:00"
+  auto_minor_version_upgrade  = true
+  allow_major_version_upgrade = true
+  tags = {
+    Project     = "order-platform"
+    Environment = "prod"
+  }
+}
+
 module "sqs" {
   source = "../../modules/sqs"
 

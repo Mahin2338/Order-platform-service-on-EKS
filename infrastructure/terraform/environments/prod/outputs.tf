@@ -23,6 +23,16 @@ output "github_ecr_publish_role_arn" {
   value       = module.iam.github_ecr_publish_role_arn
 }
 
+output "rds_address" {
+  description = "Private PostgreSQL hostname."
+  value       = module.rds.address
+}
+
+output "rds_master_user_secret_arn" {
+  description = "RDS administrator secret reference."
+  value       = module.rds.master_user_secret_arn
+}
+
 output "sqs_queue_url" {
   description = "Application SQS_QUEUE_URL setting."
   value       = module.sqs.queue_url
