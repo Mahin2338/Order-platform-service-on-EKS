@@ -47,3 +47,13 @@ module "iam" {
   github_publish_subject = "repo:Mahin2338@198268223/Order-platform-service-on-EKS@1428251630:environment:ecr-publish"
   ecr_repository_arns    = module.ecr.repository_arns
 }
+
+module "sqs" {
+  source = "../../modules/sqs"
+
+  queue_name                 = "order-events"
+  visibility_timeout_seconds = 600
+  max_receive_count          = 5
+  event_retention_seconds    = 345600  # 4 days
+  dlq_retention_seconds      = 1209600 # 14 days
+}
