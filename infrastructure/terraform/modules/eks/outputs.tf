@@ -12,3 +12,8 @@ output "node_group_name" {
   description = "Name of the baseline managed worker group."
   value       = aws_eks_node_group.baseline.node_group_name
 }
+
+output "worker_security_group_id" {
+  description = "EKS-created cluster security group also attached to managed workers."
+  value       = aws_eks_cluster.this.vpc_config[0].cluster_security_group_id
+}

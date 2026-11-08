@@ -22,3 +22,13 @@ output "github_ecr_publish_role_arn" {
   description = "GitHub ecr-publish environment AWS_ROLE_ARN value."
   value       = module.iam.github_ecr_publish_role_arn
 }
+
+output "rds_address" {
+  description = "Private PostgreSQL hostname."
+  value       = module.rds.address
+}
+
+output "rds_master_user_secret_arn" {
+  description = "RDS administrator secret reference."
+  value       = module.rds.master_user_secret_arn
+}
