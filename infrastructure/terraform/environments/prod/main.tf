@@ -76,3 +76,13 @@ module "rds" {
     Environment = "prod"
   }
 }
+
+module "sqs" {
+  source = "../../modules/sqs"
+
+  queue_name                 = "order-events"
+  visibility_timeout_seconds = 600
+  max_receive_count          = 5
+  event_retention_seconds    = 345600  # 4 days
+  dlq_retention_seconds      = 1209600 # 14 days
+}
