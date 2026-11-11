@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scheduler
+spec:
+  replicas: {{ .Values.scheduler.replicas }}
+  selector:
+    matchLabels:
+      app: scheduler
+  template:
+    metadata:
+      labels:
+        app: scheduler
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: scheduler
+          image: "{{ .Values.scheduler.image.repository }}:{{ .Values.scheduler.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.scheduler.containerPort }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8091
+            periodSeconds: 5
+
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 8091
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: {{ .Values.scheduler.resources.requests.cpu | quote }}
+              memory: {{ .Values.scheduler.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.scheduler.resources.limits.cpu | quote }}
+              memory: {{ .Values.scheduler.resources.limits.memory | quote }}
+          env:
+            - name: HEALTH_PORT
+              value: {{ .Values.scheduler.containerPort | quote }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.scheduler.existingSecret | quote }}
+                  key: DATABASE_URL
+          volumeMounts:
+            - name: rds-ca
+              mountPath: /etc/rds-ca
+              readOnly: true
+      volumes:
+        - name: rds-ca
+          configMap:
+            name: rds-ca

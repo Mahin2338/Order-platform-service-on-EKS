@@ -52,3 +52,13 @@ output "sqs_dlq_arn" {
   description = "DLQ ARN for monitoring and operator IAM policies."
   value       = module.sqs.dlq_arn
 }
+
+output "order_service_role_arn" {
+  description = "Use as orderService.iamRoleArn in Helm prod values."
+  value       = module.eks.order_service_role_arn
+}
+
+output "worker_role_arn" {
+  description = "Use as worker.iamRoleArn in Helm prod values."
+  value       = module.eks.worker_role_arn
+}

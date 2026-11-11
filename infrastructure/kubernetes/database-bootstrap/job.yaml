@@ -1,0 +1,59 @@
+# __RUN__ is replaced by the helper script with a unique execution name.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: __RUN__
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 240
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: setup
+          image: postgres:16
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              psql -X -w -v ON_ERROR_STOP=1 -v ECHO=none -v ECHO_HIDDEN=off -v VERBOSITY=terse -f /setup/setup.sql
+              # Verify the generated application credentials with full TLS checks.
+              export PGUSER=ordersapp PGPASSWORD="$APP_PASSWORD"
+              psql -X -w -v ON_ERROR_STOP=1 -c "SELECT current_user, current_database(), ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid();"
+              psql -X -w -v ON_ERROR_STOP=1 -c "SELECT 1 / CASE WHEN NOT rolsuper AND NOT rolcreatedb AND NOT rolcreaterole AND NOT rolreplication AND NOT rolbypassrls AND has_schema_privilege(current_user, 'public', 'CREATE') THEN 1 ELSE 0 END AS permissions_verified FROM pg_roles WHERE rolname = current_user;"
+          envFrom:
+            - secretRef:
+                name: __RUN__
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
+          volumeMounts:
+            - name: setup
+              mountPath: /setup
+              readOnly: true
+            - name: ca
+              mountPath: /etc/rds-ca
+              readOnly: true
+      volumes:
+        - name: setup
+          configMap:
+            name: __RUN__
+        - name: ca
+          configMap:
+            name: rds-ca

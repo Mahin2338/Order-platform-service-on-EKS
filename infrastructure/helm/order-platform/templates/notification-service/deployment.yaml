@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+spec:
+  replicas: {{ .Values.notificationService.replicas }}
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: notification-service
+          image: "{{ .Values.notificationService.image.repository }}:{{ .Values.notificationService.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.notificationService.containerPort }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8084
+            periodSeconds: 5
+
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 8084
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: {{ .Values.notificationService.resources.requests.cpu | quote }}
+              memory: {{ .Values.notificationService.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.notificationService.resources.limits.cpu | quote }}
+              memory: {{ .Values.notificationService.resources.limits.memory | quote }}
+          env:
+            - name: PORT
+              value: {{ .Values.notificationService.containerPort | quote }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.notificationService.existingSecret | quote }}
+                  key: DATABASE_URL
+          volumeMounts:
+            - name: rds-ca
+              mountPath: /etc/rds-ca
+              readOnly: true
+      volumes:
+        - name: rds-ca
+          configMap:
+            name: rds-ca

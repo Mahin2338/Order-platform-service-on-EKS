@@ -1,0 +1,143 @@
+# Production-specific settings. No secret values are stored here.
+apiGateway:
+  existingSecret: "api-gateway-secrets"
+  replicas: 1
+  image:
+    repository: "792289066018.dkr.ecr.eu-west-2.amazonaws.com/order-platform/api-gateway"
+    tag: "1.0.0"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "128Mi"
+
+orderService:
+  iamRoleArn: "arn:aws:iam::792289066018:role/order-platform-prod-order-service"
+  replicas: 1
+  image:
+    repository: "792289066018.dkr.ecr.eu-west-2.amazonaws.com/order-platform/order-service"
+    tag: "1.0.0"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "128Mi"
+  awsRegion: "eu-west-2"
+  sqsQueueUrl: "https://sqs.eu-west-2.amazonaws.com/792289066018/order-events"
+  existingSecret: "order-service-secrets"
+
+inventoryService:
+  replicas: 1
+  image:
+    repository: "792289066018.dkr.ecr.eu-west-2.amazonaws.com/order-platform/inventory-service"
+    tag: "1.0.0"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "128Mi"
+  # Shared application DB login, prepared by bootstrap-database.py.
+  existingSecret: "order-service-secrets"
+
+paymentService:
+  replicas: 1
+  image:
+    repository: "792289066018.dkr.ecr.eu-west-2.amazonaws.com/order-platform/payment-service"
+    tag: "1.0.0"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "128Mi"
+  # Shared application DB login, prepared by bootstrap-database.py.
+  existingSecret: "order-service-secrets"
+  awsRegion: "eu-west-2"
+  sqsQueueUrl: "https://sqs.eu-west-2.amazonaws.com/792289066018/order-events"
+  iamRoleArn: "arn:aws:iam::792289066018:role/order-platform-prod-payment-service"
+
+notificationService:
+  replicas: 1
+  image:
+    repository: "792289066018.dkr.ecr.eu-west-2.amazonaws.com/order-platform/notification-service"
+    tag: "1.0.0"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "128Mi"
+  # Shared application DB login, prepared by bootstrap-database.py.
+  existingSecret: "order-service-secrets"
+
+shippingService:
+  replicas: 1
+  image:
+    repository: "792289066018.dkr.ecr.eu-west-2.amazonaws.com/order-platform/shipping-service"
+    tag: "1.0.0"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "128Mi"
+  # Shared application DB login, prepared by bootstrap-database.py.
+  existingSecret: "order-service-secrets"
+  awsRegion: "eu-west-2"
+  sqsQueueUrl: "https://sqs.eu-west-2.amazonaws.com/792289066018/order-events"
+  iamRoleArn: "arn:aws:iam::792289066018:role/order-platform-prod-shipping-service"
+
+dashboardApi:
+  replicas: 1
+  image:
+    repository: "792289066018.dkr.ecr.eu-west-2.amazonaws.com/order-platform/dashboard-api"
+    tag: "1.0.0"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "128Mi"
+  # Shared application DB login, prepared by bootstrap-database.py.
+  existingSecret: "order-service-secrets"
+
+scheduler:
+  replicas: 1
+  image:
+    repository: "792289066018.dkr.ecr.eu-west-2.amazonaws.com/order-platform/scheduler"
+    tag: "1.0.0"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "128Mi"
+  # Shared application DB login, prepared by bootstrap-database.py.
+  existingSecret: "order-service-secrets"
+
+worker:
+  iamRoleArn: "arn:aws:iam::792289066018:role/order-platform-prod-worker"
+  replicas: 1
+  image:
+    repository: "792289066018.dkr.ecr.eu-west-2.amazonaws.com/order-platform/worker"
+    tag: "1.0.0"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "128Mi"
+  awsRegion: "eu-west-2"
+  sqsQueueUrl: "https://sqs.eu-west-2.amazonaws.com/792289066018/order-events"
