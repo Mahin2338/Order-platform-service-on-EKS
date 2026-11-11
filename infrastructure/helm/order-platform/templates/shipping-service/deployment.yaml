@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shipping-service
+spec:
+  replicas: {{ .Values.shippingService.replicas }}
+  selector:
+    matchLabels:
+      app: shipping-service
+  template:
+    metadata:
+      labels:
+        app: shipping-service
+    spec:
+      serviceAccountName: shipping-service
+      containers:
+        - name: shipping-service
+          image: "{{ .Values.shippingService.image.repository }}:{{ .Values.shippingService.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.shippingService.containerPort }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8085
+            periodSeconds: 5
+
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 8085
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: {{ .Values.shippingService.resources.requests.cpu | quote }}
+              memory: {{ .Values.shippingService.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.shippingService.resources.limits.cpu | quote }}
+              memory: {{ .Values.shippingService.resources.limits.memory | quote }}
+          env:
+            - name: PORT
+              value: {{ .Values.shippingService.containerPort | quote }}
+            - name: AWS_REGION
+              value: {{ .Values.shippingService.awsRegion | quote }}
+            - name: SQS_QUEUE_URL
+              value: {{ .Values.shippingService.sqsQueueUrl | quote }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.shippingService.existingSecret | quote }}
+                  key: DATABASE_URL
+          volumeMounts:
+            - name: rds-ca
+              mountPath: /etc/rds-ca
+              readOnly: true
+      volumes:
+        - name: rds-ca
+          configMap:
+            name: rds-ca

@@ -1,0 +1,33 @@
+# Shared application settings. Supply an environment values file when deploying.
+apiGateway:
+  containerPort: 8080
+
+orderService:
+  containerPort: 8081
+
+inventoryService:
+  containerPort: 8082
+
+paymentService:
+  containerPort: 8083
+
+notificationService:
+  containerPort: 8084
+
+shippingService:
+  containerPort: 8085
+
+dashboardApi:
+  containerPort: 8086
+
+scheduler:
+  containerPort: 8091
+
+worker:
+  containerPort: 8090 # Health checks only; work comes from polling SQS.
+  backendUrls:
+    order: "http://order-service:8081"
+    inventory: "http://inventory-service:8082"
+    payment: "http://payment-service:8083"
+    notification: "http://notification-service:8084"
+    shipping: "http://shipping-service:8085"

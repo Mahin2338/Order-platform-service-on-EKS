@@ -1,0 +1,57 @@
+# Database Secret/CA are prepared by scripts/bootstrap-database.py; SQS pod IAM remains to add.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+spec:
+  replicas: {{ .Values.orderService.replicas }}
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+    spec:
+      serviceAccountName: order-service
+      containers:
+        - name: order-service
+          image: "{{ .Values.orderService.image.repository }}:{{ .Values.orderService.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.orderService.containerPort }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            periodSeconds: 5
+
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 8081
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: {{ .Values.orderService.resources.requests.cpu | quote }}
+              memory: {{ .Values.orderService.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.orderService.resources.limits.cpu | quote }}
+              memory: {{ .Values.orderService.resources.limits.memory | quote }}
+          env:
+            - name: AWS_REGION
+              value: {{ .Values.orderService.awsRegion | quote }}
+            - name: SQS_QUEUE_URL
+              value: {{ .Values.orderService.sqsQueueUrl | quote }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.orderService.existingSecret | quote }}
+                  key: DATABASE_URL
+          volumeMounts:
+            - name: rds-ca
+              mountPath: /etc/rds-ca
+              readOnly: true
+      volumes:
+        - name: rds-ca
+          configMap:
+            name: rds-ca

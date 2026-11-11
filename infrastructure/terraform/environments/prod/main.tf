@@ -13,6 +13,13 @@ module "eks" {
   cluster_name       = "order-platform-prod"
   private_subnet_ids = module.networking.private_subnet_ids
 
+  application_namespace         = "order-platform-prod"
+  worker_account_name           = "worker"
+  order_service_account_name    = "order-service"
+  shipping_service_account_name = "shipping-service"
+  payment_service_account_name  = "payment-service"
+  order_events_queue_arn        = module.sqs.queue_arn
+
   node_ami_type        = "AL2023_x86_64_STANDARD"
   node_instance_types  = ["t3.small"]
   node_capacity_type   = "ON_DEMAND"
@@ -58,7 +65,7 @@ module "rds" {
   worker_security_group_id = module.eks.worker_security_group_id
 
   db_name                     = "orders"
-  username                    = "admin"
+  username                    = "adminorders"
   engine_version              = "16"
   family                      = "postgres16"
   allocated_storage           = 20

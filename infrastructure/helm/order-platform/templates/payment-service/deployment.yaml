@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+spec:
+  replicas: {{ .Values.paymentService.replicas }}
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      serviceAccountName: payment-service
+      containers:
+        - name: payment-service
+          image: "{{ .Values.paymentService.image.repository }}:{{ .Values.paymentService.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.paymentService.containerPort }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8083
+            periodSeconds: 5
+
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 8083
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: {{ .Values.paymentService.resources.requests.cpu | quote }}
+              memory: {{ .Values.paymentService.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.paymentService.resources.limits.cpu | quote }}
+              memory: {{ .Values.paymentService.resources.limits.memory | quote }}
+          env:
+            - name: PORT
+              value: {{ .Values.paymentService.containerPort | quote }}
+            - name: AWS_REGION
+              value: {{ .Values.paymentService.awsRegion | quote }}
+            - name: SQS_QUEUE_URL
+              value: {{ .Values.paymentService.sqsQueueUrl | quote }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.paymentService.existingSecret | quote }}
+                  key: DATABASE_URL
+          volumeMounts:
+            - name: rds-ca
+              mountPath: /etc/rds-ca
+              readOnly: true
+      volumes:
+        - name: rds-ca
+          configMap:
+            name: rds-ca

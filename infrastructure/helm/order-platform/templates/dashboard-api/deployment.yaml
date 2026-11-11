@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-api
+spec:
+  replicas: {{ .Values.dashboardApi.replicas }}
+  selector:
+    matchLabels:
+      app: dashboard-api
+  template:
+    metadata:
+      labels:
+        app: dashboard-api
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: dashboard-api
+          image: "{{ .Values.dashboardApi.image.repository }}:{{ .Values.dashboardApi.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.dashboardApi.containerPort }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8086
+            periodSeconds: 5
+
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 8086
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: {{ .Values.dashboardApi.resources.requests.cpu | quote }}
+              memory: {{ .Values.dashboardApi.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.dashboardApi.resources.limits.cpu | quote }}
+              memory: {{ .Values.dashboardApi.resources.limits.memory | quote }}
+          env:
+            - name: PORT
+              value: {{ .Values.dashboardApi.containerPort | quote }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.dashboardApi.existingSecret | quote }}
+                  key: DATABASE_URL
+          volumeMounts:
+            - name: rds-ca
+              mountPath: /etc/rds-ca
+              readOnly: true
+      volumes:
+        - name: rds-ca
+          configMap:
+            name: rds-ca

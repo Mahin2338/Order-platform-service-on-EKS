@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-service
+spec:
+  replicas: {{ .Values.inventoryService.replicas }}
+  selector:
+    matchLabels:
+      app: inventory-service
+  template:
+    metadata:
+      labels:
+        app: inventory-service
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: inventory-service
+          image: "{{ .Values.inventoryService.image.repository }}:{{ .Values.inventoryService.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.inventoryService.containerPort }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8082
+            periodSeconds: 5
+
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 8082
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: {{ .Values.inventoryService.resources.requests.cpu | quote }}
+              memory: {{ .Values.inventoryService.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.inventoryService.resources.limits.cpu | quote }}
+              memory: {{ .Values.inventoryService.resources.limits.memory | quote }}
+          env:
+            - name: PORT
+              value: {{ .Values.inventoryService.containerPort | quote }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.inventoryService.existingSecret | quote }}
+                  key: DATABASE_URL
+          volumeMounts:
+            - name: rds-ca
+              mountPath: /etc/rds-ca
+              readOnly: true
+      volumes:
+        - name: rds-ca
+          configMap:
+            name: rds-ca

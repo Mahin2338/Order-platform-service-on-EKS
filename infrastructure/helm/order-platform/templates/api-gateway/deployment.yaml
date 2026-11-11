@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+spec:
+  replicas: {{ .Values.apiGateway.replicas }}
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      containers:
+        - name: api-gateway
+          image: "{{ .Values.apiGateway.image.repository }}:{{ .Values.apiGateway.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.apiGateway.containerPort }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 5
+
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 8080
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: {{ .Values.apiGateway.resources.requests.cpu | quote }}
+              memory: {{ .Values.apiGateway.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.apiGateway.resources.limits.cpu | quote }}
+              memory: {{ .Values.apiGateway.resources.limits.memory | quote }}
+          env:
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.apiGateway.existingSecret | quote }}
+                  key: JWT_SECRET
