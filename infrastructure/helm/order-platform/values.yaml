@@ -31,3 +31,8 @@ worker:
     payment: "http://payment-service:8083"
     notification: "http://notification-service:8084"
     shipping: "http://shipping-service:8085"
+
+# External access is enabled explicitly by the environment.
+ingress:
+  enabled: false
+  allowedCidrs: []

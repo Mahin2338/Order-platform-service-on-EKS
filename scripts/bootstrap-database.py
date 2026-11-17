@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create the lab application DB login through a short-lived EKS Job.
+"""Prepare the lab database login and application Kubernetes Secrets.
 
 Uses AWS CLI and kubectl, not boto3. Credentials stay in memory/API stdin.
 Run from any directory. Never prints secret values or raw subprocess errors.
@@ -26,6 +26,26 @@ def run(args, payload=None):
         # Failed commands could include database URLs/passwords in their stderr.
         raise RuntimeError(f"{args[0]} {args[1]} failed; check SSO, context and resource access.")
     return result.stdout
+
+
+
+def ensure_gateway_secret(kube):
+    """Create the signing Secret once; never rotate it during ordinary setup."""
+    name = "api-gateway-secrets"
+    existing = json.loads(run(kube + ["get", "secret", name,
+                                     "--ignore-not-found", "-o", "json"]) or "null")
+    if existing:
+        encoded = existing.get("data", {}).get("JWT_SECRET")
+        if not encoded or not base64.b64decode(encoded, validate=True):
+            raise RuntimeError("Existing api-gateway-secrets has no non-empty JWT_SECRET; left unchanged.")
+        print("Gateway JWT Secret already exists; preserved without rotation.")
+        return
+    # Use stdin and create, not apply, to avoid secret-valued annotations/arguments.
+    run(kube + ["create", "-f", "-"], json.dumps({
+        "apiVersion": "v1", "kind": "Secret", "metadata": {"name": name},
+        "type": "Opaque", "stringData": {"JWT_SECRET": secrets.token_urlsafe(48)},
+    }))
+    print("Gateway JWT Secret created; signing value not displayed.")
 
 
 def main():
@@ -120,7 +140,8 @@ def main():
                 json.dumps({"stringData": app_secret["stringData"]}))
         else:
             run(kube + ["create", "-f", "-"], json.dumps(app_secret))
-        print("Database login verified; order-service-secrets and rds-ca are ready. No apps deployed.")
+        ensure_gateway_secret(kube)
+        print("Database login verified; database/JWT Secrets and rds-ca are ready. No apps deployed.")
     finally:
         # Remove administrator credentials and the Job that used them, even on failure.
         # Failure details remain in generic Job events; retry this command after fixing access.

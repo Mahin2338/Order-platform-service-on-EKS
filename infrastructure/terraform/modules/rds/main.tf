@@ -3,13 +3,13 @@ module "db" {
   source  = "terraform-aws-modules/rds/aws"
   version = "7.2.2"
 
-  identifier                      = var.identifier
-  engine                          = "postgres"
+  identifier                      = var.identifier #name of the instance
+  engine                          = "postgres" #which db
   engine_version                  = var.engine_version
   family                          = var.family
-  db_name                         = var.db_name
+  db_name                         = var.db_name #initial db created in postgres
   port                            = 5432
-  instance_class                  = var.instance_class
+  instance_class                  = var.instance_class #CPU memory class
   allocated_storage               = var.allocated_storage
   storage_type                    = "gp3"
   max_allocated_storage           = var.max_allocated_storage
@@ -17,7 +17,7 @@ module "db" {
   create_db_option_group          = false
   subnet_ids                      = var.subnet_ids
   publicly_accessible             = false
-  vpc_security_group_ids          = [aws_security_group.database.id]
+  vpc_security_group_ids          = [aws_security_group.database.id] #
   multi_az                        = var.multi_az
   username                        = var.username
   manage_master_user_password     = true

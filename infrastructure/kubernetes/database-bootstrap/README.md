@@ -24,7 +24,9 @@ It is intentionally for the current prod environment, not a generic multi-accoun
 7. Create/update `ordersapp`, grant access to `orders` and the public schema, then
    verify an actual application login and non-administrator role attributes.
 8. Create/update `order-service-secrets` with `DATABASE_URL` and `APP_PASSWORD`.
-9. Delete the Job, its setup ConfigMap and temporary administrator Secret.
+9. Create `api-gateway-secrets` with a random `JWT_SECRET` if missing. Preserve an
+   existing signing value on reruns; a malformed existing Secret stops setup.
+10. Delete the Job, its setup ConfigMap and temporary administrator Secret.
 
 No password is written to Git, command arguments, a local file or script output.
 Secrets still exist in Kubernetes and in process memory; cluster operators with
@@ -54,7 +56,7 @@ helm template order-platform infrastructure/helm/order-platform \
 ```
 
 The order Deployment mounts `rds-ca` at the path embedded in DATABASE_URL. SQS pod
-IAM and the gateway JWT Secret are still separate work; this is not a full deployment.
+IAM must already be applied through Terraform; this script does not deploy the apps.
 
 All database clients currently share a database and some query each other's tables.
 The initial `ordersapp` role is deliberately shared at application level, not a
@@ -77,7 +79,7 @@ The helper cleans up its own Job and administrator Secret on normal failures.
 If killed abruptly, list resources with `kubectl --context order-platform-prod
 -n order-platform-prod get jobs,secrets,configmaps` and delete the matching
 `db-bootstrap-...` Job, Secret and ConfigMap. Job TTL does not delete standalone Secrets.
-Do not delete `order-service-secrets` or `rds-ca`: the app will need them.
+Do not delete `order-service-secrets`, `api-gateway-secrets` or `rds-ca`: the apps need them.
 The earlier manual `db-client` pod is independent and can be deleted separately.
 
 ## References

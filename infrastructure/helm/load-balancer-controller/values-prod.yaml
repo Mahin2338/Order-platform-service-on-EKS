@@ -1,0 +1,17 @@
+# Settings for the official AWS Load Balancer Controller chart 3.6.2.
+clusterName: order-platform-prod
+region: eu-west-2
+
+# Supply the current VPC ID at installation with --set vpcId=... .
+# It changes after a full Terraform destroy/rebuild.
+
+replicaCount: 2
+
+serviceAccount:
+  create: true
+  name: aws-load-balancer-controller
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::792289066018:role/order-platform-prod-load-balancer-controller
+
+# We use the VPC CNI: the ALB can target pod IPs directly.
+defaultTargetType: ip

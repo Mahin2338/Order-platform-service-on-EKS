@@ -1,6 +1,6 @@
 # Each service has its own private repository and independent release versions.
 resource "aws_ecr_repository" "service" {
-  for_each = toset(var.service_names)
+  for_each = (var.service_names)
 
   name                 = "${var.repository_prefix}/${each.value}"
   image_tag_mutability = "IMMUTABLE"

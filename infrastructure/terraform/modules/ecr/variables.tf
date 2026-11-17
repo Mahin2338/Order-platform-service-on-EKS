@@ -5,5 +5,5 @@ variable "repository_prefix" {
 
 variable "service_names" {
   description = "Service names to create matching repositories for."
-  type        = list(string)
+  type        = set(string)
 }
