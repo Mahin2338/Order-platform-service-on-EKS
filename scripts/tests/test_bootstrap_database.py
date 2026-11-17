@@ -14,7 +14,7 @@ spec.loader.exec_module(bootstrap)
 
 
 class BootstrapTests(unittest.TestCase):
-    def simulate(self, existing=None, job_failed=False, endpoint="https://prod"):
+    def simulate(self, existing=None, job_failed=False, endpoint="https://prod", jwt_existing=None):
         calls = []
         def fake_run(args, payload=None):
             calls.append((args, payload))
@@ -31,7 +31,8 @@ class BootstrapTests(unittest.TestCase):
             if args[:3] == ["aws", "secretsmanager", "get-secret-value"]:
                 return json.dumps({"SecretString": json.dumps({"username": "dbadmin", "password": "admin-private"})})
             if "get" in args and "secret" in args:
-                return json.dumps(existing) if existing else ""
+                found = jwt_existing if "api-gateway-secrets" in args else existing
+                return json.dumps(found) if found is not None else ""
             if "get" in args and "job" in args:
                 return json.dumps({"status": {"conditions": [{"type": "Failed" if job_failed else "Complete", "status": "True"}]}})
             return ""
@@ -75,6 +76,31 @@ class BootstrapTests(unittest.TestCase):
         calls, _, error = self.simulate(endpoint="https://different")
         self.assertIsNotNone(error)
         self.assertFalse(any("apply" in args or "create" in args for args, _ in calls))
+
+
+    def test_first_run_creates_jwt_without_printing_value(self):
+        calls, output, error = self.simulate()
+        self.assertIsNone(error)
+        created = [json.loads(body) for args, body in calls
+                   if "create" in args and body and body.startswith("{")]
+        jwt = next(obj for obj in created if obj["metadata"]["name"] == "api-gateway-secrets")
+        self.assertTrue(jwt["stringData"]["JWT_SECRET"])
+        self.assertNotIn(jwt["stringData"]["JWT_SECRET"], output)
+        self.assertFalse(any("generated-private" in arg for args, _ in calls for arg in args))
+
+    def test_existing_jwt_is_not_modified(self):
+        calls, output, error = self.simulate(jwt_existing={
+            "data": {"JWT_SECRET": base64.b64encode(b"existing-signing-value").decode()}})
+        self.assertIsNone(error)
+        writes = [body for args, body in calls if "create" in args or "patch" in args]
+        self.assertFalse(any(body and '"name": "api-gateway-secrets"' in body for body in writes))
+        self.assertNotIn("existing-signing-value", output)
+
+    def test_malformed_existing_jwt_is_not_replaced(self):
+        calls, _, error = self.simulate(jwt_existing={"data": {}})
+        self.assertIsNotNone(error)
+        self.assertFalse(any(body and '"name": "api-gateway-secrets"' in body for _, body in calls))
+        self.assertEqual(sum("delete" in args for args, _ in calls), 3)
 
 
 if __name__ == "__main__":

@@ -35,9 +35,9 @@ resource "aws_eks_cluster" "this" {
 
     # Workers use the private endpoint; laptops can reach the public endpoint.
     # Reaching the endpoint does not grant permission to run commands.
-    endpoint_private_access = true
-    endpoint_public_access  = true
-    public_access_cidrs     = ["0.0.0.0/0"]
+    endpoint_private_access = true #allows nodes to reach eks via private network
+    endpoint_public_access  = true #allows for kubectl to work from outside the network
+    public_access_cidrs     = ["0.0.0.0/0"] #change to private ip
   }
 
   # Attach permissions before EKS starts using its service role.

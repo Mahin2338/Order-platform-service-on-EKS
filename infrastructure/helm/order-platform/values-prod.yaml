@@ -141,3 +141,9 @@ worker:
       memory: "128Mi"
   awsRegion: "eu-west-2"
   sqsQueueUrl: "https://sqs.eu-west-2.amazonaws.com/792289066018/order-events"
+
+# Controlled demo: HTTP on the AWS ALB address, restricted to this public IPv4.
+ingress:
+  enabled: true
+  allowedCidrs:
+    - "92.40.179.51/32"

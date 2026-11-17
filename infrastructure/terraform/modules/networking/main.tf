@@ -21,8 +21,8 @@ module "vpc" {
     "10.0.242.0/24",
   ]
 
-  enable_dns_support   = true
-  enable_dns_hostnames = true
+  enable_dns_support   = true #enables dns resolution
+  enable_dns_hostnames = true #enables dns hostnames assignment for eligble resources
   create_igw           = true
 
   # A public route does not require auto-assigning public IPs to instances.

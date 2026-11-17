@@ -30,7 +30,7 @@ Per-service database grants and separate migration credentials are future work.
 - Apply the Terraform payment/shipping/worker IAM role changes after reviewing the plan.
 - Confirm the referenced image tags exist in ECR, especially after nightly destroy.
 - Run scripts/bootstrap-database.py after recreating RDS/EKS.
-- Prepare the gateway JWT Secret in the same namespace.
+- The bootstrap script also creates the gateway JWT Secret in the same namespace.
 - Use namespace order-platform-prod, matching the IAM trust rules and Secrets.
 
 Preview without deployment:
@@ -52,3 +52,25 @@ Health checks prove process/database reachability, not complete business behavio
 Dashboard/scheduler query tables owned by the other apps, so test them after those
 apps have created their tables. CPU/memory values are initial test settings, not
 load-tested production sizing. Public access and Redis rate limiting remain unconfigured.
+
+## Demo external access
+
+Prod enables one internet-facing ALB through templates/ingress.yaml. Only IPv4
+clients listed in ingress.allowedCidrs can reach HTTP port 80. Update this list
+when your public IP changes or to add another operator's /32 address.
+
+Routing keeps the URL unchanged: /api and /auth go to api-gateway:8080; everything
+else (including /dashboard endpoints and website assets) goes to dashboard-api:8086.
+The frontend already uses window.location.origin, so no image rebuild is needed.
+This is an IP-restricted demo: login accepts arbitrary credentials and dashboard
+endpoints are reached directly. HTTP is unencrypted; do not use real credentials.
+There is no domain, TLS certificate or claim of production-ready authentication.
+
+Apply the controller IAM and install the controller before upgrading this chart.
+The controller discovers tagged public subnets and creates the ALB. Installing or
+upgrading the chart with ingress.enabled=true starts ALB charges.
+
+Before nightly Terraform destroy, disable ingress and upgrade this release (or
+uninstall the application release) while the controller still runs. Wait until
+AWS has deleted the ALB and its related resources, then destroy infrastructure.
+Terraform does not directly manage the controller-created ALB.
